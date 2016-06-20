@@ -1,4 +1,4 @@
-# io_scene_bfres
+# io_scene_kcl
 
 This is a Blender add-on to import and export the KCL collision data of a Mario Kart 8 track.
 
