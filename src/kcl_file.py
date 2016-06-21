@@ -26,7 +26,7 @@ class KclFile:
             reader.seek(self.header.model_offset_list_offset)
             self.model_offsets = []
             for i in range(0, self.header.model_count):
-                self.model_offsets.append( reader.read_uint32())
+                self.model_offsets.append(reader.read_uint32())
             # Load the models.
             self.models = []
             for i in range(0, len(self.model_offsets)):
