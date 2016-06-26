@@ -2,7 +2,7 @@ bl_info = {
     "name": "Nintendo KCL format",
     "description": "Import-Export KCL mesh",
     "author": "Syroot",
-    "version": (0, 1, 0),
+    "version": (0, 5, 0),
     "blender": (2, 75, 0),
     "location": "File > Import-Export",
     "warning": "This add-on is under development.",
@@ -27,19 +27,29 @@ if "bpy" in locals():
     if "importing" in locals():
         print("Reloading: " + str(importing))
         importlib.reload(importing)
+    if "editing" in locals():
+        print("Reloading: " + str(editing))
+        importlib.reload(editing)
+    if "exporting" in locals():
+        print("Reloading: " + str(exporting))
+        importlib.reload(exporting)
 
 import bpy
 from . import log
 from . import binary_io
 from . import importing
+from . import editing
+from . import exporting
 
 def register():
     bpy.utils.register_module(__name__)
     bpy.types.INFO_MT_file_import.append(importing.ImportOperator.menu_func_import)
+    bpy.types.INFO_MT_file_export.append(exporting.ExportOperator.menu_func_export)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
     bpy.types.INFO_MT_file_import.remove(importing.ImportOperator.menu_func_import)
+    bpy.types.INFO_MT_file_export.remove(exporting.ExportOperator.menu_func_export)
 
 # Register classes of the add-on when Blender runs this script.
 if __name__ == "__main__":

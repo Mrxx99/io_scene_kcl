@@ -1,8 +1,7 @@
 import bmesh
 import bpy
 import bpy_extras
-import os
-from .log import Log
+from mathutils import Matrix
 from .kcl_file import KclFile
 
 class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
@@ -22,46 +21,19 @@ class ImportOperator(bpy.types.Operator, bpy_extras.io_utils.ImportHelper):
         default=""
     )
 
-    def execute(self, context):
-        importer = Importer(self, context, self.properties.filepath)
-        return importer.run()
-
     @staticmethod
     def menu_func_import(self, context):
         self.layout.operator(ImportOperator.bl_idname, text="Nintendo KCL (.kcl)")
 
-class MarioKart8EditPanel(bpy.types.Panel):
-    bl_context = "EDITMODE"
-    bl_label = "Mario Kart 8"
-    bl_region_type = "UI"
-    bl_space_type = "VIEW_3D"
-
-    @classmethod
-    def poll(cls, context):
-        # Only allow in edit mode for a selected mesh.
-        return context.mode == "EDIT_MESH" and context.object is not None and context.object.type == "MESH"
-
-    def draw(self, context):
-        obj = context.object
-        bm = bmesh.from_edit_mesh(obj.data)
-        face = bm.faces.active
-        collision_flag_layer = bm.faces.layers.int.get("collision_flags")
-        if face is None or collision_flag_layer is None:
-            self.layout.row().label("No collision face selected.")
-        else:
-            row = self.layout.row()
-            row.label("Collision Flags")
-            row.label(str(face[collision_flag_layer]))
+    def execute(self, context):
+        importer = Importer(self, context, self.properties.filepath)
+        return importer.run()
 
 class Importer:
     def __init__(self, operator, context, filepath):
         self.operator = operator
         self.context = context
-        # Extract path information.
         self.filepath = filepath
-        self.directory = os.path.dirname(self.filepath)
-        self.filename = os.path.basename(self.filepath)
-        self.fileext = os.path.splitext(self.filename)[1].upper()
 
     def run(self):
         # Read in the file data.
@@ -72,10 +44,14 @@ class Importer:
         return {"FINISHED"}
 
     def _convert_kcl(self, kcl):
+        # Create all models as mesh children of an empty object.
+        obj = bpy.data.objects.new("KCL", None)
+        bpy.context.scene.objects.link(obj)
+        # Convert the models and attach them to the empty object.
         for i in range(0, len(kcl.models)):
-            self._convert_model(kcl, i)
+            self._convert_model(obj, kcl, i)
 
-    def _convert_model(self, kcl, model_index):
+    def _convert_model(self, parent_obj, kcl, model_index):
         model = kcl.models[model_index]
         # Load the model data into a bmesh. Create a custom layer for the collision flags in it.
         bm = bmesh.new()
@@ -87,10 +63,14 @@ class Importer:
             vert3 = bm.verts.new(vertices[2])
             face = bm.faces.new((vert1, vert2, vert3))
             face[collision_flag_layer] = triangle.collision_flags
+        # Transform the coordinate system so that Y is up.
+        matrix_y_to_z = Matrix(((1, 0, 0), (0, 0, -1), (0, 1, 0)))
+        bmesh.ops.transform(bm, matrix=matrix_y_to_z, verts=bm.verts)
         # Create the mesh into which the bmesh data will be written.
         mesh = bpy.data.meshes.new("Model" + str(model_index))
         bm.to_mesh(mesh)
         bm.free()
         # Create an object representing that mesh.
         obj = bpy.data.objects.new("Model" + str(model_index), mesh)
+        obj.parent = parent_obj
         bpy.context.scene.objects.link(obj)

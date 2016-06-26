@@ -20,6 +20,14 @@ class BinaryReader:
     def tell(self):
         return self.reader.tell()
 
+    def read_0_string(self):
+        text = ""
+        i = self.read_byte()
+        while i != 0:
+            text += chr(i)
+            i = self.read_byte()
+        return text
+
     def read_byte(self):
         return self.reader.read(1)[0]
 
@@ -66,14 +74,6 @@ class BinaryReader:
     def read_raw_string(self, length, encoding="ascii"):
         return self.reader.read(length).decode(encoding)
 
-    def read_0_string(self):
-        text = ""
-        i = self.read_byte()
-        while i != 0:
-            text += chr(i)
-            i = self.read_byte()
-        return text
-
     def read_vector2f(self):
         return self.read_single(), self.read_single()
 
@@ -101,11 +101,21 @@ class BinaryWriter:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.writer.close()
 
+    def reserve_offset(self):
+        return Offset(self)
+
+    def satisfy_offset(self, offset, value):
+        offset.satisfy(self, value)
+
     def seek(self, offset, whence=io.SEEK_SET):
         self.writer.seek(offset, whence)
 
     def tell(self):
         return self.writer.tell()
+
+    def write_0_string(self, value, encoding):
+        self.write_raw_string(bytearray(value, encoding))
+        self.write_byte(0)
 
     def write_byte(self, value):
         self.writer.write(struct.pack("B", value))
@@ -125,15 +135,36 @@ class BinaryWriter:
     def write_single(self, value):
         self.writer.write(struct.pack(self.endianness + "f", value))
 
+    def write_singles(self, value):
+        self.writer.write(struct.pack(self.endianness + str(len(value)) + "f", *value))
+
     def write_uint16(self, value):
         self.writer.write(struct.pack(self.endianness + "H", value))
+
+    def write_uint16s(self, value):
+        self.writer.write(struct.pack(self.endianness + str(len(value)) + "H", *value))
 
     def write_uint32(self, value):
         self.writer.write(struct.pack(self.endianness + "I", value))
 
+    def write_uint32s(self, value):
+        self.writer.write(struct.pack(self.endianness + str(len(value)) + "I", *value))
+
     def write_raw_string(self, value, encoding="ascii"):
         self.writer.write(bytearray(value, encoding))
 
-    def write_0_string(self, value, encoding):
-        self.write_raw_string(bytearray(value, encoding))
-        self.write_byte(0)
+class Offset:
+    def __init__(self, writer):
+        # Remember the position of the offset to change it later.
+        self.position = writer.tell()
+        # Write an empty offset for now.
+        self.value = 0
+        writer.write_uint32(self.value)
+
+    def satisfy(self, writer, value):
+        self.value = value
+        # Seek back temporarily to the offset position to write the final offset value.
+        current_position = writer.tell()
+        writer.seek(self.position)
+        writer.write_uint32(self.value)
+        writer.seek(current_position)
