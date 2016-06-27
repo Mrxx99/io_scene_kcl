@@ -33,10 +33,10 @@ class KclModel:
     class Header:
         def __init__(self, reader):
             offset = reader.tell() # Offsets relative to start of model.
-            self.positions_offset = offset + reader.read_int32()
-            self.normals_offset = offset + reader.read_int32()
-            self.triangles_offset = offset + reader.read_int32()
-            self.octree_offset = offset + reader.read_int32()
+            self.positions_offset = offset + reader.read_uint32()
+            self.normals_offset = offset + reader.read_uint32()
+            self.triangles_offset = offset + reader.read_uint32()
+            self.octree_offset = offset + reader.read_uint32()
             self.unknown0x10 = reader.read_single()
             self.first_spatial_position = reader.read_vector3f()
             self.mask = reader.read_vector3()

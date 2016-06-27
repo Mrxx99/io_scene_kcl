@@ -2,9 +2,10 @@ import bmesh
 import bpy
 import bpy_extras
 import math
+import os
 from mathutils import Matrix, Vector
 from .binary_io import BinaryWriter
-from .kcl_file import KclModel
+from .kcl_file import KclFile, KclModel
 
 class ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     bl_idname = "export_scene.kcl"
@@ -23,16 +24,37 @@ class ExportOperator(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     )
     check_extension = True
 
+    write_new_model = bpy.props.BoolProperty(
+        name="[Experimental] Write new Model",
+        description="The model and octree will be rewritten instead of just replacing the collision flags.",
+        default=False
+    )
     max_octree_cube_triangles = bpy.props.IntProperty(
         name="Max. Cube Triangles",
         description="The maximum amount of triangles in a spatial cube before it is attempted to split it.",
-        default=30
+        default=32
     )
     min_octree_cube_size = bpy.props.IntProperty(
         name="Min. Cube Size",
         description="The minimum size of a spatial cube into which triangles will be sorted.",
         default=256
     )
+
+    def draw(self, context):
+        layout = self.layout
+        # Write New Model
+        layout.prop(self, "write_new_model")
+        # Max. Cube Triangles
+        row = layout.row()
+        row.enabled = self.write_new_model
+        row.prop(self, "max_octree_cube_triangles")
+        # Min. Cube Size
+        row = layout.row()
+        row.enabled = self.write_new_model
+        row.prop(self, "min_octree_cube_size")
+        # Warning label
+        if self.write_new_model:
+            self.layout.row().label("This does not work in-game yet.", icon="ERROR")
 
     @staticmethod
     def menu_func_export(self, context):
@@ -49,6 +71,13 @@ class Exporter:
         self.filepath = filepath
 
     def run(self):
+        if self.operator.write_new_model:
+            self._create_new_model()
+        else:
+            self._update_collision_flags()
+        return {"FINISHED"}
+
+    def _create_new_model(self):
         # Prepare the list of models to export (e.g., every object which is a mesh).
         parent_obj = self.context.scene.objects.get("KCL")
         if parent_obj is None:
@@ -175,7 +204,7 @@ class Exporter:
                 writer.seek(octree_address)
                 for node in octree:
                     node.write(writer, octree_address)
-        return {"FINISHED"}
+        bm.free()
 
     @staticmethod
     def _next_exponent(value):
@@ -184,3 +213,39 @@ class Exporter:
             return 0
         return int(math.ceil(math.log(value, 2)))
 
+    def _update_collision_flags(self):
+        # This only works when overwriting an existing file, since information is required from it.
+        if not os.path.isfile(self.filepath):
+            raise AssertionError("Please select an existing file to modify if you are not exporting a new model.")
+        # Prepare the list of models which have to be iterated.
+        parent_obj = self.context.scene.objects.get("KCL")
+        if parent_obj is None:
+            raise AssertionError("No KCL parent object found. Children must be parented to an empty KCL object.")
+        models = []
+        for obj in parent_obj.children:
+            if obj.type == "MESH":
+                models.append(obj.data)
+        if len(models) == 0:
+            raise AssertionError("No KCL models found. They must be children to the existing, empty KCL parent object.")
+        # Load them into one bmesh instance to traverse its faces.
+        bm = bmesh.new()
+        for model in models:
+            bm.from_mesh(model)
+        model_index_layer = bm.faces.layers.int["kcl_model_index"]
+        face_index_layer = bm.faces.layers.int["kcl_face_index"]
+        flags_layer = bm.faces.layers.int["kcl_flags"]
+        # Load the existing file into memory and open it for overwriting parts.
+        kcl_file = KclFile(open(self.filepath, "rb"))
+        with BinaryWriter(open(self.filepath, "r+b")) as writer:
+            writer.endianness = ">"
+            # Iterate through the faces.
+            for face in bm.faces:
+                model_index = face[model_index_layer]
+                face_index = face[face_index_layer]
+                flags = face[flags_layer]
+                # Find the offset in the file and write the new collision flags to it.
+                kcl_model = kcl_file.models[model_index]
+                offset = kcl_model.header.triangles_offset + (0x14 * face_index) + 0x0E
+                writer.seek(offset)
+                writer.write_uint16(flags)
+        bm.free()
