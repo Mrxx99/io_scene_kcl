@@ -217,6 +217,9 @@ class Exporter:
         # This only works when overwriting an existing file, since information is required from it.
         if not os.path.isfile(self.filepath):
             raise AssertionError("Please select an existing file to modify if you are not exporting a new model.")
+        # Ensure we left edit mode, so that the bmesh data of a mesh in edit mode is written back.
+        if self.context.active_object.mode == "EDIT":
+            bpy.ops.object.mode_set(mode="OBJECT")
         # Prepare the list of models which have to be iterated.
         parent_obj = self.context.scene.objects.get("KCL")
         if parent_obj is None:
