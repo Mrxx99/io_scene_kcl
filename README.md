@@ -2,6 +2,8 @@
 
 This is a Blender add-on to import and export the KCL collision data of a Mario Kart 8 track.
 
+Right now, it is only possible to export new collision flags. To export new or modified geometry, a bug fix is needed.
+
 ![alt tag](https://raw.githubusercontent.com/Syroot/io_scene_kcl/master/doc/readme/example.png)
 
 Installation
