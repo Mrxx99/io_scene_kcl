@@ -2,7 +2,7 @@ bl_info = {
     "name": "Nintendo KCL format",
     "description": "Import-Export KCL mesh",
     "author": "Syroot",
-    "version": (0, 6, 0),
+    "version": (0, 6, 1),
     "blender": (2, 75, 0),
     "location": "File > Import-Export",
     "warning": "This add-on is under development.",
@@ -58,6 +58,7 @@ def register():
         description="When this face is hit, Lakitu will reset the collider.",
         update=editing.update_is_lakitu
     )
+    bpy.types.VIEW3D_MT_edit_mesh_select_similar.append(editing.KclSelectSimilar.menu_func)
     bpy.app.handlers.scene_update_post.append(editing.scene_update_post_handler)
     # Exporting
     bpy.types.INFO_MT_file_export.append(exporting.ExportOperator.menu_func_export)
@@ -69,6 +70,7 @@ def unregister():
     # Editing
     del bpy.types.WindowManager.kcl_flag
     del bpy.types.WindowManager.kcl_is_lakitu
+    bpy.types.VIEW3D_MT_edit_mesh_select_similar.remove(editing.KclSelectSimilar.menu_func)
     bpy.app.handlers.scene_update_post.remove(editing.scene_update_post_handler)
     # Exporting
     bpy.types.INFO_MT_file_export.remove(exporting.ExportOperator.menu_func_export)

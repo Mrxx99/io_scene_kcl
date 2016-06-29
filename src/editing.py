@@ -1,6 +1,8 @@
 import bmesh
 import bpy
 
+kcl_dict = {}
+
 class KclEditPanel(bpy.types.Panel):
     bl_context = "EDITMODE"
     bl_label = "Nintendo KCL"
@@ -27,13 +29,18 @@ class KclEditPanel(bpy.types.Panel):
             row.label('{0:08b} {1:08b}'.format(face[flags_layer] >> 8, face[flags_layer] & 0xFF))
             # Lakitu
             self.layout.prop(context.window_manager, "kcl_is_lakitu")
-            # Select Similar
-            self.layout.operator("kcl.select_similar", text='Select Similar')
-
 
 class KclSelectSimilar(bpy.types.Operator):
     bl_idname = "kcl.select_similar"
-    bl_label = "Select Similar"
+    bl_label = "Collision Flags"
+    bl_description = "Select faces with the same KCL collision flag."
+
+    @classmethod
+    def poll(cls, context):
+        # This can only be run if the collision flags layer exists.
+        edit_obj = context.edit_object
+        bm = kcl_dict.get(edit_obj.name)
+        return bm and bm.faces.layers.int.get("kcl_flags")
 
     def execute(self, context):
         # Get the bmesh instance of the mesh which is currently in edit mode.
@@ -47,9 +54,9 @@ class KclSelectSimilar(bpy.types.Operator):
             face.select = True
         return {'FINISHED'}
 
-
-kcl_dict = {}
-kcl_update_by_code = False
+    @staticmethod
+    def menu_func(self, context):
+        self.layout.operator(KclSelectSimilar.bl_idname, text=KclSelectSimilar.bl_label)
 
 @bpy.app.handlers.persistent
 def scene_update_post_handler(scene):
@@ -59,7 +66,7 @@ def scene_update_post_handler(scene):
     if obj.mode == "EDIT" and obj.type == "MESH":
         # Ensure to have an instance of the edit bmesh in the global dictionary to retrieve it in update methods.
         bm = kcl_dict.setdefault(obj.name, bmesh.from_edit_mesh(obj.data))
-        face = bm.faces.active
+        face = bm.faces.active # TODO: bm instance might be dead here due to previous editing.
         flag_layer = bm.faces.layers.int.get("kcl_flags")
         if face and flag_layer:
             flags = face[flag_layer]
