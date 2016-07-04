@@ -66,18 +66,21 @@ class KclModel:
 
     class OctreeNode:
         def __init__(self, base, width, bm, indices, max_triangles, min_width):
-            self.hw = width / 2.0
-            self.c = base + Vector((self.hw, self.hw, self.hw))
+            self.half_width = width / 2.0
+            self.c = base + Vector((self.half_width, self.half_width, self.half_width))
             self.is_leaf = True
             self.indices = []
             for i in indices:
+                # TODO: Maybe solving it with a Wiimm KCL_BLOW approach is faster.
                 if self.tricube_overlap(bm.faces[i], self):
                     self.indices.append(i)
             # Split this node's cube when it contains too many triangles and the minimum size is not underrun yet.
-            if len(self.indices) > max_triangles and self.hw >= min_width:
+            if len(self.indices) > max_triangles and self.half_width >= min_width:
                 self.is_leaf = False
-                self.branches = [KclModel.OctreeNode(base + self.hw * Vector((x, y, z)), self.hw, bm, self.indices,
-                    max_triangles, min_width) for z in range(0, 2) for y in range(0, 2) for x in range(0, 2)]
+                self.branches = [KclModel.OctreeNode(base + (Vector((x, y, z)) * self.half_width), self.half_width,
+                     bm, self.indices,
+                     max_triangles, min_width)
+                     for z in range(0, 2) for y in range(0, 2) for x in range(0, 2)]
                 self.indices = []
 
         def write(self, writer, base_address):
@@ -109,17 +112,17 @@ class KclModel:
             def axis_test(a1, a2, b1, b2, c1, c2):
                 p = a1 * b1 + a2 * b2
                 q = a1 * c1 + a2 * c2
-                r = cube.hw * (abs(a1) + abs(a2))
+                r = cube.half_width * (abs(a1) + abs(a2))
                 return min(p, q) > r or max(p, q) < -r
 
             v0 = bm_face.verts[0].co - cube.c
             v1 = bm_face.verts[1].co - cube.c
             v2 = bm_face.verts[2].co - cube.c
-            if min(v0.x, v1.x, v2.x) > cube.hw or max(v0.x, v1.x, v2.x) < -cube.hw: return False
-            if min(v0.y, v1.y, v2.y) > cube.hw or max(v0.y, v1.y, v2.y) < -cube.hw: return False
-            if min(v0.z, v1.z, v2.z) > cube.hw or max(v0.z, v1.z, v2.z) < -cube.hw: return False
+            if min(v0.x, v1.x, v2.x) > cube.half_width or max(v0.x, v1.x, v2.x) < -cube.half_width: return False
+            if min(v0.y, v1.y, v2.y) > cube.half_width or max(v0.y, v1.y, v2.y) < -cube.half_width: return False
+            if min(v0.z, v1.z, v2.z) > cube.half_width or max(v0.z, v1.z, v2.z) < -cube.half_width: return False
             d = bm_face.normal.dot(v0)
-            r = cube.hw * (abs(bm_face.normal.x) + abs(bm_face.normal.y) + abs(bm_face.normal.z))
+            r = cube.half_width * (abs(bm_face.normal.x) + abs(bm_face.normal.y) + abs(bm_face.normal.z))
             if d > r or d < -r: return False
             e = v1 - v0
             if axis_test(e.z, -e.y, v0.y, v0.z, v2.y, v2.z): return False

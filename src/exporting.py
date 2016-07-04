@@ -97,31 +97,28 @@ class Exporter:
         matrix_z_to_y = Matrix(((1, 0, 0), (0, 0, 1), (0, -1, 0)))
         bmesh.ops.transform(bm, matrix=matrix_z_to_y, verts=bm.verts)
         bm.faces.ensure_lookup_table()
-        collision_layer = bm.faces.layers.int["collision_flags"]
-        # Compute the minimum and maximum point of the bounding box with additional padding taken from Gu_Menu.
+        collision_layer = bm.faces.layers.int["kcl_flags"]
+        # Find the minimum and maximum point of the model.
         bb_min = [None] * 3
         bb_max = [None] * 3
         for vert in bm.verts:
             for i in range(0, 3):
                 if bb_min[i] is None or vert.co[i] < bb_min[i]: bb_min[i] = vert.co[i]
                 if bb_max[i] is None or vert.co[i] > bb_max[i]: bb_max[i] = vert.co[i]
-        bb_min = Vector((bb_min[0] - 50, bb_min[1] - 80, bb_min[2] - 50))
-        bb_max = Vector((bb_max[0] + 50, bb_max[1] + 50, bb_max[2] + 50))
-        # Compute the shift and the required number of divisions.
-        n_min = self._next_exponent(self.operator.min_octree_cube_size)
-        n_x = max(self._next_exponent(bb_max.x - bb_min.x), n_min)
-        n_y = max(self._next_exponent(bb_max.y - bb_min.y), n_min)
-        n_z = max(self._next_exponent(bb_max.z - bb_min.z), n_min)
-        n = max(min(n_x, n_y, n_z) - 1, n_min)
-        divs_x = 2 ** (n_x - n)
-        divs_y = 2 ** (n_y - n)
-        divs_z = 2 ** (n_z - n)
-        width = 2 ** n
-        # Build the octree.
-        octree = [KclModel.OctreeNode(bb_min + width * Vector((x, y, z)),
-                                      width, bm, range(0, len(bm.faces)),
-                                      self.operator.max_octree_cube_triangles,
-                                      self.operator.min_octree_cube_size)
+        # Find the exponents with which the world size (the cuboid which includes all sub cubes) is calculated.
+        exponents = (self._next_power_of_2(bb_max[0] - bb_min[0]),
+                     self._next_power_of_2(bb_max[1] - bb_min[1]),
+                     self._next_power_of_2(bb_max[2] - bb_min[2]))
+        # Find the size of the sub cubes which must be powers of 2 (unlike the cuboid world holding them).
+        sub_cube_exponent = min(exponents) - 1
+        divs_x = 2 ** (exponents[0] - sub_cube_exponent)
+        divs_y = 2 ** (exponents[1] - sub_cube_exponent)
+        divs_z = 2 ** (exponents[2] - sub_cube_exponent)
+        cube_size = 2 ** sub_cube_exponent
+        # Build the octree, creating the first level of sub cubes.
+        octree = [KclModel.OctreeNode(Vector(bb_min) + (Vector((x, y, z)) * cube_size), cube_size,
+            bm, range(0, len(bm.faces)),
+            self.operator.max_octree_cube_triangles, self.operator.min_octree_cube_size)
             for z in range(0, divs_z) for y in range(0, divs_y) for x in range(0, divs_x)]
         # Write the KCL file.
         with BinaryWriter(open(self.filepath, "wb")) as writer:
@@ -133,9 +130,9 @@ class Exporter:
             writer.write_uint32(1) # Model count
             writer.write_singles(bb_min)
             writer.write_singles(bb_max)
-            writer.write_uint32(n_x) # Coordinate shift X
-            writer.write_uint32(n_y) # Coordinate shift Y
-            writer.write_uint32(n_z) # Coordinate shift Z
+            writer.write_uint32(exponents[0]) # Coordinate shift X
+            writer.write_uint32(exponents[1]) # Coordinate shift Y
+            writer.write_uint32(exponents[2]) # Coordinate shift Z
             writer.write_uint32(0) # unknown0x34, seems to be stable with 0.
             # Write the model octree. TODO: This is a dummy octree just supporting one model at the moment.
             writer.satisfy_offset(model_octree_offset, writer.tell())
@@ -156,12 +153,12 @@ class Exporter:
                 octree_offset = writer.reserve_offset()
                 writer.write_single(30) # unknown0x10
                 writer.write_singles(bb_min)
-                writer.write_single((0xFFFFFFFF << n_x) & 0xFFFFFFFF) # Mask X
-                writer.write_single((0xFFFFFFFF << n_y) & 0xFFFFFFFF) # Mask Y
-                writer.write_single((0xFFFFFFFF << n_z) & 0xFFFFFFFF) # Mask Z
-                writer.write_uint32(n) # Coordinate Shift X
-                writer.write_uint32(n_x - n) # Coordinate Shift Y
-                writer.write_uint32(n_x - n + n_y - n) # Coordinate Shift Z
+                writer.write_single((0xFFFFFFFF << exponents[0]) & 0xFFFFFFFF) # Mask X
+                writer.write_single((0xFFFFFFFF << exponents[1]) & 0xFFFFFFFF) # Mask Y
+                writer.write_single((0xFFFFFFFF << exponents[2]) & 0xFFFFFFFF) # Mask Z
+                writer.write_uint32(sub_cube_exponent) # Coordinate Shift X
+                writer.write_uint32(exponents[0] - sub_cube_exponent) # Coordinate Shift Y
+                writer.write_uint32(exponents[0] - sub_cube_exponent + exponents[1] - sub_cube_exponent) # Coordinate Shift Z
                 writer.write_single(0) # unknown0x38
                 # Write the positions section.
                 writer.satisfy_offset(positions_offset, writer.tell() - model_address)
@@ -173,11 +170,11 @@ class Exporter:
                     u = face.verts[0].co
                     v = face.verts[1].co
                     w = face.verts[2].co
-                    n = face.normal
-                    a = -((w - u).cross(n)).normalized()
-                    b = (v - u).cross(n).normalized()
-                    c = (w - v).cross(n).normalized()
-                    writer.write_singles(n)
+                    sub_cube_exponent = face.normal
+                    a = -((w - u).cross(sub_cube_exponent)).normalized()
+                    b = (v - u).cross(sub_cube_exponent).normalized()
+                    c = (w - v).cross(sub_cube_exponent).normalized()
+                    writer.write_singles(sub_cube_exponent)
                     writer.write_singles(a)
                     writer.write_singles(b)
                     writer.write_singles(c)
@@ -187,8 +184,8 @@ class Exporter:
                     u = face.verts[0].co
                     v = face.verts[1].co
                     w = face.verts[2].co
-                    n = face.normal
-                    c = (w - v).cross(n).normalized()
+                    sub_cube_exponent = face.normal
+                    c = (w - v).cross(sub_cube_exponent).normalized()
                     writer.write_single((w - u).dot(c)) # Length
                     writer.write_uint16(j) # Position index
                     writer.write_uint16(4 * j) # Direction index
@@ -207,8 +204,8 @@ class Exporter:
         bm.free()
 
     @staticmethod
-    def _next_exponent(value):
-        # Return the lowest integer n so that value <= 2 ** n.
+    def _next_power_of_2(value):
+        # Return the next power of 2 bigger than the value.
         if value <= 1:
             return 0
         return int(math.ceil(math.log(value, 2)))
