@@ -79,15 +79,15 @@ class Exporter:
 
     def _create_new_model(self):
         # Prepare the list of models to export (e.g., every object which is a mesh).
-        parent_obj = self.context.scene.objects.get("KCL")
-        if parent_obj is None:
-            raise AssertionError("No KCL parent object found. Children must be parented to an empty KCL object.")
+        group = bpy.data.groups.get("KCL")
+        if not group:
+            raise AssertionError("No mesh object is assigned to the KCL group, so there is nothing to export.")
         mesh_objects = []
-        for obj in parent_obj.children:
+        for obj in group.objects:
             if obj.type == "MESH":
                 mesh_objects.append(obj)
         if len(mesh_objects) == 0:
-            raise AssertionError("No KCL models found. They must be children to the existing, empty KCL parent object.")
+            raise AssertionError("No mesh object is assigned to the KCL group, so there is nothing to export.")
         # TODO: We only support 1 model at the moment, so they get merged into one.
         # TODO: They should at least be converted to global space before joining in case they are offset.
         bm = bmesh.new()

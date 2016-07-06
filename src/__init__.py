@@ -2,7 +2,7 @@ bl_info = {
     "name": "Nintendo KCL format",
     "description": "Import-Export KCL mesh",
     "author": "Syroot",
-    "version": (0, 6, 1),
+    "version": (0, 6, 2),
     "blender": (2, 75, 0),
     "location": "File > Import-Export",
     "warning": "This add-on is under development.",
@@ -15,24 +15,12 @@ bl_info = {
 # Reload the classes when reloading add-ons in Blender with F8.
 if "bpy" in locals():
     import importlib
-    if "log" in locals():
-        print("Reloading: " + str(log))
-        importlib.reload(log)
-    if "binary_io" in locals():
-        print("Reloading: " + str(binary_io))
-        importlib.reload(binary_io)
-    if "kcl_file" in locals():
-        print("Reloading: " + str(kcl_file))
-        importlib.reload(kcl_file)
-    if "importing" in locals():
-        print("Reloading: " + str(importing))
-        importlib.reload(importing)
-    if "editing" in locals():
-        print("Reloading: " + str(editing))
-        importlib.reload(editing)
-    if "exporting" in locals():
-        print("Reloading: " + str(exporting))
-        importlib.reload(exporting)
+    if "log"       in locals(): importlib.reload(log)
+    if "binary_io" in locals(): importlib.reload(binary_io)
+    if "kcl_file"  in locals(): importlib.reload(kcl_file)
+    if "importing" in locals(): importlib.reload(importing)
+    if "editing"   in locals(): importlib.reload(editing)
+    if "exporting" in locals(): importlib.reload(exporting)
 
 import bpy
 from . import log

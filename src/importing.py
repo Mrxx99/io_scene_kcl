@@ -48,14 +48,11 @@ class Importer:
         with open(self.filepath, "rb") as raw:
             kcl_file = KclFile(raw)
         # Import the data into Blender objects.
-        self._convert_kcl(kcl_file)
+        self._convert(kcl_file)
         return {"FINISHED"}
 
-    def _convert_kcl(self, kcl):
-        # Create an empty object which will hold the child model(s).
-        obj = bpy.data.objects.new("KCL", None)
-        bpy.context.scene.objects.link(obj)
-        # Convert the models and attach them to the empty object.
+    def _convert(self, kcl):
+        # Convert the models.
         global_bm = None
         for i in range(0, len(kcl.models)):
             if self.operator.merge_models:
@@ -66,10 +63,10 @@ class Importer:
             else:
                 model_bm = self._new_bmesh()
                 self._convert_model(model_bm, kcl, i)
-                self._create_mesh_object(model_bm, "Model " + str(i).zfill(2), obj)
+                self._create_mesh_object(model_bm, "Model " + str(i).zfill(2))
         # Create an object for merged models.
         if self.operator.merge_models:
-            self._create_mesh_object(global_bm, "Model", obj)
+            self._create_mesh_object(global_bm, "Model")
 
     def _new_bmesh(self):
         bm = bmesh.new()
@@ -77,6 +74,13 @@ class Importer:
         bm.faces.layers.int.new("kcl_face_index")
         bm.faces.layers.int.new("kcl_flags")
         return bm
+
+    def _add_to_group(self, ob, group_name):
+        # Get or create the required group.
+        group = bpy.data.groups.get(group_name, bpy.data.groups.new(group_name))
+        # Link the provided object to it.
+        if ob.name not in group.objects:
+            group.objects.link(ob)
 
     def _convert_model(self, bm, kcl, model_index):
         # Get the additional data layers to keep track of the triangles for exporting.
@@ -95,9 +99,9 @@ class Importer:
             face[model_index_layer] = model_index
             face[face_index_layer] = i
             face[flags_layer] = triangle.collision_flags
-            # TODO: Assign the material.
+            # TODO: Assign a material visualizing the flags somehow.
 
-    def _create_mesh_object(self, bm, name, parent):
+    def _create_mesh_object(self, bm, name):
         # Transform the coordinate system so that Y is up.
         matrix_y_to_z = Matrix(((1, 0, 0), (0, 0, -1), (0, 1, 0)))
         bmesh.ops.transform(bm, matrix=matrix_y_to_z, verts=bm.verts)
@@ -105,7 +109,7 @@ class Importer:
         mesh = bpy.data.meshes.new(name)
         bm.to_mesh(mesh)
         bm.free()
-        # Create an object representing that mesh.
-        mesh_obj = bpy.data.objects.new(name, mesh)
-        mesh_obj.parent = parent
-        bpy.context.scene.objects.link(mesh_obj)
+        # Create, group and link an object representing that mesh.
+        ob = bpy.data.objects.new(name, mesh)
+        self._add_to_group(ob, "KCL")
+        bpy.context.scene.objects.link(ob)
