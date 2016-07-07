@@ -217,20 +217,20 @@ class Exporter:
         # Ensure we left edit mode, so that the bmesh data of a mesh in edit mode is written back.
         if self.context.active_object.mode == "EDIT":
             bpy.ops.object.mode_set(mode="OBJECT")
-        # Prepare the list of models which have to be iterated.
-        parent_obj = self.context.scene.objects.get("KCL")
-        if parent_obj is None:
-            raise AssertionError("No KCL parent object found. Children must be parented to an empty KCL object.")
-        models = []
-        for obj in parent_obj.children:
+            # Prepare the list of models to export (e.g., every object which is a mesh).
+        group = bpy.data.groups.get("KCL")
+        if not group:
+            raise AssertionError("No mesh object is assigned to the KCL group, so there is nothing to export.")
+        mesh_objects = []
+        for obj in group.objects:
             if obj.type == "MESH":
-                models.append(obj.data)
-        if len(models) == 0:
-            raise AssertionError("No KCL models found. They must be children to the existing, empty KCL parent object.")
+                mesh_objects.append(obj)
+        if len(mesh_objects) == 0:
+            raise AssertionError("No mesh object is assigned to the KCL group, so there is nothing to export.")
         # Load them into one bmesh instance to traverse its faces.
         bm = bmesh.new()
-        for model in models:
-            bm.from_mesh(model)
+        for mesh_ob in mesh_objects:
+            bm.from_mesh(mesh_ob.data)
         model_index_layer = bm.faces.layers.int["kcl_model_index"]
         face_index_layer = bm.faces.layers.int["kcl_face_index"]
         flags_layer = bm.faces.layers.int["kcl_flags"]
