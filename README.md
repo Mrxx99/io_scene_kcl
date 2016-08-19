@@ -6,7 +6,7 @@ Right now, it is only possible to export new collision flags. To export new or m
 
 ![alt tag](https://raw.githubusercontent.com/Syroot/io_scene_kcl/master/doc/readme/example.png)
 
-S. the wiki for [help and more information](https://github.com/Syroot/io_scene_kcl/wiki/Installation).
+S. the wiki for [help and more information](https://github.com/Syroot/io_scene_kcl/wiki).
 
 License
 =======
