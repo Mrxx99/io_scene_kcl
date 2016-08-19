@@ -6,13 +6,7 @@ Right now, it is only possible to export new collision flags. To export new or m
 
 ![alt tag](https://raw.githubusercontent.com/Syroot/io_scene_kcl/master/doc/readme/example.png)
 
-Installation
-=====
-
-- Go to your Blender installation directory inside the version folder, and then to `scripts` > `addons`.
-- Create a new folder called "io_scene_kcl".
-- Copy in all `*.py` files from the `src` folder of this repository.
-- In the Blender user preferences, enable the 'Import-Export: Nintendo KCL format' add-on.
+S. the wiki for [help and more information](https://github.com/Syroot/io_scene_kcl/wiki/Installation).
 
 License
 =======
